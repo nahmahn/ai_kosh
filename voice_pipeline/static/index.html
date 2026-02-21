@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MSME-Graph Voice AI</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0f1115;
+            --card-bg: rgba(255, 255, 255, 0.04);
+            --text-color: #ffffff;
+            --text-muted: #a0aec0;
+            --orb-idle: radial-gradient(circle at 30% 30%, #4a5568, #2d3748);
+            --orb-listening: radial-gradient(circle at 30% 30%, #4299e1, #2b6cb0);
+            --orb-processing: radial-gradient(circle at 30% 30%, #ecc94b, #d69e2e);
+            --orb-speaking: radial-gradient(circle at 30% 30%, #48bb78, #2f855a);
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            min-height: 100vh;
+            overflow-y: auto;
+        }
+
+        .header {
+            margin-top: 1.5rem;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-family: 'Space Grotesk', sans-serif;
+            margin: 0;
+            font-size: 1.4rem;
+            letter-spacing: 1px;
+            color: #a0aec0;
+        }
+
+        .orb-container {
+            position: relative;
+            width: 200px;
+            height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 1.5rem 0 1rem;
+            cursor: pointer;
+        }
+
+        .orb {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: var(--orb-idle);
+            box-shadow: 0 0 40px rgba(0, 0, 0, 0.5);
+            transition: all 0.4s ease;
+            position: relative;
+            z-index: 10;
+        }
+
+        .ring {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            border: 2px solid transparent;
+            z-index: 5;
+            opacity: 0;
+            transform: scale(0.8);
+            transition: all 0.3s ease;
+        }
+
+        .volume-ripple {
+            position: absolute;
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.08);
+            z-index: 8;
+            transition: transform 0.1s linear;
+        }
+
+        body[data-state="idle"] .orb {
+            background: var(--orb-idle);
+        }
+
+        body[data-state="listening"] .orb {
+            background: var(--orb-listening);
+            box-shadow: 0 0 60px rgba(66, 153, 225, 0.4);
+        }
+
+        body[data-state="listening"] .ring {
+            border-color: rgba(66, 153, 225, 0.5);
+            animation: pulse-ring 1.5s infinite cubic-bezier(0.215, 0.61, 0.355, 1);
+        }
+
+        body[data-state="processing"] .orb {
+            background: var(--orb-processing);
+            box-shadow: 0 0 60px rgba(236, 201, 75, 0.4);
+            animation: breathe 2s infinite ease-in-out;
+        }
+
+        body[data-state="speaking"] .orb {
+            background: var(--orb-speaking);
+            box-shadow: 0 0 60px rgba(72, 187, 120, 0.4);
+            animation: bounce-talk 0.8s infinite alternate ease-in-out;
+        }
+
+        body[data-state="speaking"] .ring {
+            border-color: rgba(72, 187, 120, 0.5);
+            animation: pulse-ring 1s infinite alternate;
+        }
+
+        @keyframes pulse-ring {
+            0% {
+                transform: scale(0.8);
+                opacity: 0;
+            }
+
+            50% {
+                opacity: 1;
+            }
+
+            100% {
+                transform: scale(1.4);
+                opacity: 0;
+            }
+        }
+
+        @keyframes breathe {
+
+            0%,
+            100% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.05);
+            }
+        }
+
+        @keyframes bounce-talk {
+            0% {
+                transform: scale(1) translateY(0);
+            }
+
+            100% {
+                transform: scale(1.05) translateY(-5px);
+            }
+        }
+
+        .status-text {
+            font-size: 1rem;
+            color: #cbd5e0;
+            height: 1.5rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 1rem;
+        }
+
+        .transcript-panel {
+            width: 90%;
+            max-width: 600px;
+            background: var(--card-bg);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 1.2rem 1.5rem;
+            margin-bottom: 1rem;
+            backdrop-filter: blur(12px);
+            min-height: 60px;
+            transition: all 0.3s ease;
+        }
+
+        .transcript-panel .label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: #718096;
+            margin-bottom: 0.5rem;
+        }
+
+        .transcript-panel .content {
+            font-size: 0.95rem;
+            line-height: 1.6;
+            color: #e2e8f0;
+            word-wrap: break-word;
+        }
+
+        .transcript-panel .content.empty {
+            color: #4a5568;
+            font-style: italic;
+        }
+
+        .entities-panel {
+            width: 90%;
+            max-width: 600px;
+            background: var(--card-bg);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 1.2rem 1.5rem;
+            margin-bottom: 1rem;
+            backdrop-filter: blur(12px);
+            display: none;
+        }
+
+        .entities-panel .label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: #718096;
+            margin-bottom: 0.5rem;
+        }
+
+        .entity-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.3rem 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            font-size: 0.85rem;
+        }
+
+        .entity-row .key {
+            color: #a0aec0;
+        }
+
+        .entity-row .val {
+            color: #e2e8f0;
+            font-weight: 500;
+            text-align: right;
+            max-width: 60%;
+        }
+
+        .gate-score {
+            width: 90%;
+            max-width: 600px;
+            background: var(--card-bg);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 1rem 1.5rem;
+            margin-bottom: 1.5rem;
+            backdrop-filter: blur(12px);
+            display: none;
+            text-align: center;
+        }
+
+        .gate-score .score-value {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 2rem;
+            font-weight: 700;
+        }
+
+        .gate-score .score-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: #718096;
+        }
+
+        .hint {
+            font-size: 0.8rem;
+            color: #4a5568;
+            max-width: 400px;
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+    </style>
+</head>
+
+<body data-state="idle">
+    <div class="header">
+        <h1>MSME VOICE GATE</h1>
+    </div>
+    <div class="orb-container" id="interaction-zone">
+        <div class="ring"></div>
+        <div class="volume-ripple" id="ripple"></div>
+        <div class="orb"></div>
+    </div>
+    <div class="status-text" id="status-label">Tap to start conversation</div>
+    <div class="transcript-panel" id="transcript-panel">
+        <div class="label">📝 Transcript</div>
+        <div class="content empty" id="transcript-content">Waiting for speech...</div>
+    </div>
+    <div class="entities-panel" id="entities-panel">
+        <div class="label">🏭 Extracted Entities</div>
+        <div id="entities-content"></div>
+    </div>
+    <div class="gate-score" id="gate-score-panel">
+        <div class="score-label">Manufacturing Confidence</div>
+        <div class="score-value" id="gate-score-value">—</div>
+    </div>
+    <div class="hint">Session IDs are automatically generated. Speak in Hindi. Wait for the green light to reply.</div>
+
+    <script>
+        const body = document.body;
+        const statusLabel = document.getElementById('status-label');
+        const interactionZone = document.getElementById('interaction-zone');
+        const ripple = document.getElementById('ripple');
+        const transcriptContent = document.getElementById('transcript-content');
+        const entitiesPanel = document.getElementById('entities-panel');
+        const entitiesContent = document.getElementById('entities-content');
+        const gateScorePanel = document.getElementById('gate-score-panel');
+        const gateScoreValue = document.getElementById('gate-score-value');
+
+        let audioContext, mediaStream, analyser, microphone, javascriptNode, mediaRecorder;
+        let audioChunks = [];
+        let isRecording = false;
+        let silenceTimer = null;
+        let recordingStartTime = 0;       // timestamp when recording began
+        let session_id = "ui-session-" + Date.now();
+        let current_turn = 1;
+
+        // ── VAD Tuning ──
+        const VAD_VOLUME_THRESHOLD = 30;
+        const VAD_SILENCE_DURATION_MS = 2000;    // 2s silence = stop
+        const MIN_RECORDING_DURATION_MS = 1500;  // ignore silence until at least 1.5s of speech
+        const MAX_RECORDING_DURATION_MS = 30000; // safety: force-stop after 30s
+        const POST_TTS_COOLDOWN_MS = 1000;       // 1s cooldown after TTS before re-listening
+
+        let maxRecordingTimer = null;
+
+        function setState(state) {
+            body.setAttribute('data-state', state);
+            if (state === 'idle') statusLabel.innerText = "Tap to start conversation";
+            if (state === 'listening') statusLabel.innerText = "Listening...";
+            if (state === 'processing') { statusLabel.innerText = "Analyzing..."; ripple.style.transform = 'scale(1)'; }
+            if (state === 'speaking') { statusLabel.innerText = "Speaking..."; ripple.style.transform = 'scale(1)'; }
+        }
+
+        interactionZone.addEventListener('click', () => {
+            if (body.getAttribute('data-state') === 'idle') startMicrophoneAccess();
+        });
+
+        async function startMicrophoneAccess() {
+            try {
+                mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioContext.createAnalyser();
+                analyser.smoothingTimeConstant = 0.5;
+                analyser.fftSize = 256;
+                microphone = audioContext.createMediaStreamSource(mediaStream);
+                javascriptNode = audioContext.createScriptProcessor(1024, 1, 1);
+                microphone.connect(analyser);
+                analyser.connect(javascriptNode);
+                javascriptNode.connect(audioContext.destination);
+
+                mediaRecorder = new MediaRecorder(mediaStream, { mimeType: 'audio/webm' });
+                mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    audioChunks = [];
+                    if (audioBlob.size < 1000) {
+                        // Too small — probably just noise burst, ignore
+                        console.log("VAD: Audio too small, ignoring.");
+                        setState('listening');
+                        return;
+                    }
+                    await sendAudioToBackend(audioBlob);
+                };
+
+                // ── VAD Frame Loop ──
+                javascriptNode.onaudioprocess = () => {
+                    if (body.getAttribute('data-state') !== 'listening') return;
+
+                    const array = new Uint8Array(analyser.frequencyBinCount);
+                    analyser.getByteFrequencyData(array);
+                    let values = 0;
+                    for (let i = 0; i < array.length; i++) values += array[i];
+                    const averageVolume = values / array.length;
+
+                    const scale = Math.max(1, averageVolume / 10 + 1);
+                    ripple.style.transform = `scale(${scale})`;
+
+                    if (averageVolume > VAD_VOLUME_THRESHOLD) {
+                        // ── VOICE DETECTED ──
+                        if (!isRecording) {
+                            console.log(`VAD: Voice detected (Vol: ${averageVolume.toFixed(1)}), starting recording.`);
+                            isRecording = true;
+                            recordingStartTime = Date.now();
+                            audioChunks = [];
+                            mediaRecorder.start();
+                            // Safety valve: force stop after MAX duration
+                            maxRecordingTimer = setTimeout(() => {
+                                console.log("VAD: Max recording duration reached, force stopping.");
+                                stopRecordingAndSend();
+                            }, MAX_RECORDING_DURATION_MS);
+                        }
+                        // Clear any pending silence timer
+                        if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
+                    } else {
+                        // ── SILENCE ──
+                        if (isRecording && !silenceTimer) {
+                            silenceTimer = setTimeout(() => {
+                                const elapsed = Date.now() - recordingStartTime;
+                                if (elapsed < MIN_RECORDING_DURATION_MS) {
+                                    // Not enough speech yet, keep listening
+                                    console.log(`VAD: Silence detected but only ${elapsed}ms recorded, waiting for more speech.`);
+                                    silenceTimer = null;
+                                    return;
+                                }
+                                console.log(`VAD: ${VAD_SILENCE_DURATION_MS}ms silence after ${elapsed}ms of speech. Stopping.`);
+                                stopRecordingAndSend();
+                            }, VAD_SILENCE_DURATION_MS);
+                        }
+                    }
+                };
+
+                setState('listening');
+            } catch (err) {
+                console.error("Microphone access denied: ", err);
+                statusLabel.innerText = "Microphone Access Denied";
+            }
+        }
+
+        function stopRecordingAndSend() {
+            isRecording = false;
+            if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
+            if (maxRecordingTimer) { clearTimeout(maxRecordingTimer); maxRecordingTimer = null; }
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.stop(); // triggers onstop → sendAudioToBackend
+            }
+            setState('processing');
+        }
+
+        async function sendAudioToBackend(audioBlob) {
+            setState('processing');
+
+            const formData = new FormData();
+            formData.append("audio", audioBlob, "recording.webm");
+            formData.append("session_id", session_id);
+
+            try {
+                const endpoint = current_turn === 1 ? "/voice/process" : "/voice/followup";
+                const response = await fetch(endpoint, { method: 'POST', body: formData });
+
+                if (!response.ok) {
+                    const errText = await response.text();
+                    throw new Error(`API ${response.status}: ${errText}`);
+                }
+
+                const result = await response.json();
+                console.log("Backend Response:", result);
+                current_turn++;
+
+                // ── Display Transcript ──
+                const rawTranscript = result.transcript?.raw_transcript || "";
+                if (rawTranscript) {
+                    transcriptContent.classList.remove('empty');
+                    transcriptContent.innerText = rawTranscript;
+                }
+
+                // ── Display Entities ──
+                displayEntities(result.extracted_entities || {});
+
+                // ── Display Gate 3 Score ──
+                const g3 = result.nsic_gate3_signals || {};
+                const score = g3.voice_mfg_confidence_score;
+                if (score !== undefined && score !== null) {
+                    gateScorePanel.style.display = 'block';
+                    gateScoreValue.innerText = (score * 100).toFixed(0) + '%';
+                    gateScoreValue.style.color = score >= 0.8 ? '#48bb78' : score >= 0.5 ? '#ecc94b' : '#fc8181';
+                }
+
+                // ── Handle TTS Auto-Play ──
+                const followups = result.followup_questions_audio || [];
+                const ttsAudio = followups.length > 0 ? followups[0].audio_base64 : null;
+                const ttsSuccess = followups.length > 0 ? followups[0].tts_success : false;
+                const convState = result.conversation_state || "";
+
+                if (ttsAudio && ttsSuccess) {
+                    playBase64Audio(ttsAudio, () => {
+                        if (convState === "COMPLETE" || convState === "PARTIAL_COMPLETE") {
+                            finishConversation();
+                        } else {
+                            // Cooldown before re-enabling mic (prevents echo pickup)
+                            setTimeout(() => setState('listening'), POST_TTS_COOLDOWN_MS);
+                        }
+                    });
+                } else {
+                    if (convState === "COMPLETE" || convState === "PARTIAL_COMPLETE") {
+                        finishConversation();
+                    } else {
+                        console.warn("No TTS audio. Re-enabling mic after cooldown.");
+                        setTimeout(() => setState('listening'), POST_TTS_COOLDOWN_MS);
+                    }
+                }
+
+            } catch (err) {
+                console.error("Failed to send audio:", err);
+                setState('idle');
+                statusLabel.innerText = "⚠️ Error — Tap to retry";
+            }
+        }
+
+        function finishConversation() {
+            setState('idle');
+            statusLabel.innerText = "✅ Verification Complete";
+            statusLabel.style.color = "#48bb78";
+        }
+
+        function displayEntities(entities) {
+            entitiesPanel.style.display = 'block';
+            entitiesContent.innerHTML = '';
+            const displayKeys = [
+                ['enterprise_name', '🏢 Enterprise'], ['product_descriptions', '📦 Products'],
+                ['raw_materials_mentioned', '🧱 Raw Materials'], ['manufacturing_process_keywords', '⚙️ Mfg Keywords'],
+                ['employees_count', '👷 Employees'], ['years_in_business', '📅 Years'],
+                ['selling_channels', '🛒 Channels'], ['buyer_geographies_mentioned', '📍 Geographies'],
+                ['export_signal', '🌍 Export'], ['existing_online_presence', '🌐 Online'],
+                ['daily_production_capacity', '📈 Daily Capacity'], ['factory_area_size', '📏 Factory Size'],
+                ['major_machinery_used', '🚜 Machinery']
+            ];
+            for (const [key, label] of displayKeys) {
+                let val = entities[key];
+                if (val === null || val === undefined) continue;
+                if (Array.isArray(val)) { if (val.length === 0) continue; val = val.join(', '); }
+                if (typeof val === 'boolean') val = val ? '✅ Yes' : '❌ No';
+                const row = document.createElement('div');
+                row.className = 'entity-row';
+                row.innerHTML = `<span class="key">${label}</span><span class="val">${val}</span>`;
+                entitiesContent.appendChild(row);
+            }
+        }
+
+        function playBase64Audio(base64Data, onEndCallback) {
+            setState('speaking');
+            try {
+                const audio = new Audio("data:audio/wav;base64," + base64Data);
+                audio.onended = () => { if (onEndCallback) onEndCallback(); };
+                audio.onerror = (e) => { console.error("Audio error:", e); if (onEndCallback) onEndCallback(); };
+                audio.play().catch(err => { console.error("Auto-play blocked:", err); if (onEndCallback) onEndCallback(); });
+            } catch (error) {
+                console.error("Error playing audio:", error);
+                if (onEndCallback) onEndCallback();
+            }
+        }
+    </script>
+</body>
+
+</html>
