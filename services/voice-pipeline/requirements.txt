@@ -1,0 +1,13 @@
+# MSME-Graph Voice Pipeline (MOCKED) — Dependencies
+# Core API
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+pydantic==2.10.5
+
+# HTTP / API
+requests>=2.31.0
+httpx>=0.27.0
+
+# Environment / Config
+python-dotenv>=1.0.0

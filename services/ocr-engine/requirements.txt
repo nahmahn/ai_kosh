@@ -1,0 +1,10 @@
+# MSME-Graph Layer 1 — OCR & Document AI Service
+python-multipart==0.0.9
+pdf2image==1.17.0
+Pillow>=10.0.0
+layoutlmv3==0.1.0  # (pseudo-package for brevity, assuming local weights/HF)
+transformers>=4.35.0
+torch>=2.1.0
+google-generativeai>=0.4.0
+pydantic>=2.5.0
+python-dotenv>=1.0.0
