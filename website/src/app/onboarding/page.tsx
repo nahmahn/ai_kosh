@@ -20,11 +20,13 @@ export default function OnboardingPage() {
             if (ce.detail) {
                 setAutoFillData(prev => ({ ...prev, ...ce.detail }));
 
-                // Briefly show success state then close modals
-                setTimeout(() => {
-                    setShowVoiceModal(false);
-                    setShowOcrModal(false);
-                }, 1500);
+                // Only close modal automatically if conversation is actually complete
+                if (ce.detail.conversation_complete) {
+                    setTimeout(() => {
+                        setShowVoiceModal(false);
+                        setShowOcrModal(false);
+                    }, 1500);
+                }
             }
         };
         const handleRegistrationComplete = (e: object) => {

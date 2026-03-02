@@ -115,6 +115,9 @@
         "years_in_business",
         "employees_count",
         "existing_online_presence",
+        "export_signal",
+        "selling_channels",
+        "annual_turnover",
         "daily_production_capacity",
         "factory_area_size",
         "major_machinery_used"
@@ -203,6 +206,21 @@
         "existing_online_presence": {
           "type": [
             "boolean",
+            "null"
+          ]
+        },
+        "export_signal": {
+          "type": "boolean"
+        },
+        "selling_channels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "annual_turnover": {
+          "type": [
+            "string",
             "null"
           ]
         }

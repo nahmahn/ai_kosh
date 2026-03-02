@@ -246,6 +246,10 @@ export default function OnboardingForm({ isEmbedded = false, initialData }: { is
                 for (const [key, value] of Object.entries(data)) {
                     if (key === "_source") continue;
                     if (value && key in updated) {
+                        // Special case: don't overwrite turnover if already present from a document
+                        if (key === "turnover" && prev.turnover && source === "Voice Pipeline") {
+                            continue;
+                        }
                         (updated as Record<string, unknown>)[key] = value;
                         newAutoFill[key] = source;
                     }
@@ -359,7 +363,7 @@ export default function OnboardingForm({ isEmbedded = false, initialData }: { is
                 <input
                     className={`onb-input ${hasValidation ? (v.valid ? "valid" : "invalid") : ""} ${source ? "autofilled" : ""}`}
                     type={opts.type || "text"}
-                    value={val}
+                    value={val || ""}
                     placeholder={placeholder}
                     maxLength={opts.maxLength}
                     disabled={opts.disabled}

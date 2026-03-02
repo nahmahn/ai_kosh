@@ -116,7 +116,7 @@ export default function ImpactStats() {
                     By the Numbers
                 </span>
                 <h2 className="section-title animate-in" style={{ animationDelay: "0.1s" }}>
-                    Why Sellers Love AIKOSH
+                    Why Sellers would Love ONDC?
                 </h2>
                 <p
                     className="section-subtitle animate-in"

@@ -135,12 +135,13 @@ Rules:
 - export_signal: true or false (boolean, not string)
 - existing_online_presence: boolean (true or false). true if selling online or has a website.
 - buyer_geographies: specific cities/districts only, never "India" or "abroad". Include foreign cities if export_signal is true.
+- annual_turnover: explicitly extract the yearly turnover if mentioned (e.g. "50 lakhs", "2 crores", "10 units"). Do NOT confuse with quantity.
 - daily_production_capacity: explicitly extract volume/quantity produced per day/month (e.g. "100 pieces", "500 kilo").
 - factory_area_size: explicitly extract factory size if mentioned (e.g. "2000 gaj", "5000 sq ft").
 - major_machinery_used: extract names of machines used (e.g. "Juki machine", "CNC router").
 - Rejoin STT splits: "गाज़िया आबाद" → "गाज़ियाबाद"
 
-{{"enterprise_name":null,"product_descriptions":[],"raw_materials_mentioned":[],"manufacturing_process_keywords":[],"buyer_types_mentioned":[],"buyer_geographies_mentioned":[],"production_scale_mentioned":null,"years_in_business":null,"employees_count":null,"existing_online_presence":null,"export_signal":false,"selling_channels":[],"daily_production_capacity":null,"factory_area_size":null,"major_machinery_used":[]}}"""
+{{"enterprise_name":null,"product_descriptions":[],"raw_materials_mentioned":[],"manufacturing_process_keywords":[],"buyer_types_mentioned":[],"buyer_geographies_mentioned":[],"production_scale_mentioned":null,"years_in_business":null,"employees_count":null,"existing_online_presence":null,"export_signal":false,"selling_channels":[],"annual_turnover":null,"daily_production_capacity":null,"factory_area_size":null,"major_machinery_used":[]}}"""
 
 
 
@@ -311,6 +312,10 @@ class EntityExtractor:
             "existing_online_presence": None,
             "export_signal": False,
             "selling_channels": [],
+            "annual_turnover": None,
+            "daily_production_capacity": None,
+            "factory_area_size": None,
+            "major_machinery_used": [],
         }
         for key, default in defaults.items():
             if key not in data:
@@ -725,9 +730,14 @@ class EntityExtractor:
                 "buyer_types_mentioned": [],
                 "buyer_geographies_mentioned": [],
                 "production_scale_mentioned": None,
-                "years_in_business": None,
                 "employees_count": None,
                 "existing_online_presence": None,
+                "export_signal": False,
+                "selling_channels": [],
+                "annual_turnover": None,
+                "daily_production_capacity": None,
+                "factory_area_size": None,
+                "major_machinery_used": [],
             },
             "confidence_scores": {
                 "enterprise_name": None,

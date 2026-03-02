@@ -105,6 +105,12 @@ class SchemaValidator:
                 "years_in_business": extracted_entities.get("years_in_business"),
                 "employees_count": extracted_entities.get("employees_count"),
                 "existing_online_presence": extracted_entities.get("existing_online_presence"),
+                "export_signal": extracted_entities.get("export_signal", False),
+                "selling_channels": extracted_entities.get("selling_channels", []),
+                "annual_turnover": extracted_entities.get("annual_turnover"),
+                "daily_production_capacity": extracted_entities.get("daily_production_capacity"),
+                "factory_area_size": extracted_entities.get("factory_area_size"),
+                "major_machinery_used": extracted_entities.get("major_machinery_used", []),
             },
             "confidence_scores": {
                 "enterprise_name": confidence_scores.get("enterprise_name"),

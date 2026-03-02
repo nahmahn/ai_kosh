@@ -30,10 +30,13 @@ export default function VoiceOnboarding({ isEmbedded = false }: { isEmbedded?: b
     const [round, setRound] = useState(0);
     const [error, setError] = useState<string | null>(null);
     const [conversationHistory, setConversationHistory] = useState<{ role: "user" | "assistant"; text: string }[]>([]);
+    const [lastApiResponse, setLastApiResponse] = useState<Record<string, unknown> | null>(null);
+    const [showJson, setShowJson] = useState(false);
 
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const chunksRef = useRef<Blob[]>([]);
     const streamRef = useRef<MediaStream | null>(null);
+    const historyEndRef = useRef<HTMLDivElement | null>(null);
 
     // Cleanup on unmount
     useEffect(() => {
@@ -41,6 +44,11 @@ export default function VoiceOnboarding({ isEmbedded = false }: { isEmbedded?: b
             streamRef.current?.getTracks().forEach((t) => t.stop());
         };
     }, []);
+
+    // Auto-scroll conversation history
+    useEffect(() => {
+        historyEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, [conversationHistory]);
 
     const startRecording = useCallback(async () => {
         try {
@@ -90,6 +98,7 @@ export default function VoiceOnboarding({ isEmbedded = false }: { isEmbedded?: b
             if (sessionId) formData.append("session_id", sessionId);
 
             try {
+                console.log("[VoiceOnboarding] Sending to:", endpoint, "sessionId:", sessionId);
                 const res = await fetch(endpoint, {
                     method: "POST",
                     body: formData,
@@ -101,6 +110,17 @@ export default function VoiceOnboarding({ isEmbedded = false }: { isEmbedded?: b
                 }
 
                 const data = await res.json();
+                console.log("[VoiceOnboarding] API Response:", JSON.stringify(data, null, 2));
+
+                // Store for JSON display — strip audio_base64 to keep it readable
+                const displayData = { ...data };
+                if (displayData.followup_questions_audio) {
+                    displayData.followup_questions_audio = displayData.followup_questions_audio.map(
+                        (fq: Record<string, unknown>) => ({ ...fq, audio_base64: fq.audio_base64 ? "[BASE64_AUDIO]" : "" })
+                    );
+                }
+                setLastApiResponse(displayData);
+
                 setSessionId(data.session_id);
 
                 const currentTranscript = data.transcript?.cleaned_transcript || data.cleaned_transcript || "";
@@ -116,6 +136,8 @@ export default function VoiceOnboarding({ isEmbedded = false }: { isEmbedded?: b
                 setRound(rounds);
 
                 const entities = data.extracted_entities || {};
+                console.log("[VoiceOnboarding] Extracted entities:", JSON.stringify(entities, null, 2));
+
                 let filled = 0;
                 if (entities.enterprise_name) filled++;
                 if (entities.product_descriptions?.length) filled++;
@@ -129,7 +151,8 @@ export default function VoiceOnboarding({ isEmbedded = false }: { isEmbedded?: b
                 if (entities.major_machinery_used?.length) filled++;
                 setFilledFields(filled);
 
-                setIsComplete(data.conversation_complete || false);
+                const convComplete = data.conversation_complete || false;
+                setIsComplete(convComplete);
 
                 // ── Expanded auto-fill event to OnboardingForm ──────────
                 const autoFillData: Record<string, string> = { _source: "Voice Pipeline" };
@@ -138,6 +161,7 @@ export default function VoiceOnboarding({ isEmbedded = false }: { isEmbedded?: b
                 if (entities.product_descriptions?.length) {
                     autoFillData.productDescription = entities.product_descriptions.join(", ");
                 }
+                if (entities.annual_turnover) autoFillData.turnover = entities.annual_turnover;
                 if (entities.raw_materials_mentioned?.length) {
                     autoFillData.rawMaterials = entities.raw_materials_mentioned.join(", ");
                 }
@@ -183,12 +207,15 @@ export default function VoiceOnboarding({ isEmbedded = false }: { isEmbedded?: b
                     else if (hints.b2c_signal) autoFillData.transactionType = "B2C";
                 }
 
+                console.log("[VoiceOnboarding] Auto-fill data:", JSON.stringify(autoFillData, null, 2));
+
                 if (Object.keys(autoFillData).length > 1) {
-                    window.dispatchEvent(new CustomEvent("ondc-autofill", { detail: autoFillData }));
+                    const eventData = { ...autoFillData, conversation_complete: convComplete };
+                    window.dispatchEvent(new CustomEvent("ondc-autofill", { detail: eventData }));
                 }
 
                 const followups = data.followup_questions_audio || [];
-                if (followups.length > 0 && !data.conversation_complete) {
+                if (followups.length > 0 && !convComplete) {
                     const fq = followups[0];
                     setFollowupQuestion(fq.question || "");
 
@@ -205,6 +232,7 @@ export default function VoiceOnboarding({ isEmbedded = false }: { isEmbedded?: b
                     setFollowupQuestion("");
                 }
             } catch (err) {
+                console.error("[VoiceOnboarding] Error:", err);
                 setError(
                     err instanceof Error
                         ? err.message
@@ -234,6 +262,9 @@ export default function VoiceOnboarding({ isEmbedded = false }: { isEmbedded?: b
         setFollowupQuestion("");
         setRound(0);
         setError(null);
+        setConversationHistory([]);
+        setLastApiResponse(null);
+        setShowJson(false);
     };
 
     return (
@@ -262,7 +293,7 @@ export default function VoiceOnboarding({ isEmbedded = false }: { isEmbedded?: b
             </div>
 
             {/* Central Pulse / Feedback Area */}
-            <div style={{ height: "140px", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", marginBottom: "32px" }}>
+            <div style={{ minHeight: "100px", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", marginBottom: "24px" }}>
                 {!recording && !processing && !followupQuestion && (
                     <div style={{ color: "var(--text-secondary)", fontSize: "1.1rem" }}>
                         Tap the microphone and tell us about your business.
@@ -301,7 +332,7 @@ export default function VoiceOnboarding({ isEmbedded = false }: { isEmbedded?: b
                     maxWidth: "500px",
                     maxHeight: "200px",
                     overflowY: "auto",
-                    marginBottom: "32px",
+                    marginBottom: "24px",
                     padding: "16px",
                     background: "rgba(0,0,0,0.02)",
                     borderRadius: "16px",
@@ -325,6 +356,7 @@ export default function VoiceOnboarding({ isEmbedded = false }: { isEmbedded?: b
                             {h.text}
                         </div>
                     ))}
+                    <div ref={historyEndRef} />
                 </div>
             )}
 
@@ -347,7 +379,7 @@ export default function VoiceOnboarding({ isEmbedded = false }: { isEmbedded?: b
                     cursor: processing ? "not-allowed" : "pointer",
                     transition: "all 0.3s ease",
                     transform: recording ? "scale(1.1)" : "scale(1)",
-                    marginBottom: "32px",
+                    marginBottom: "24px",
                     opacity: processing ? 0.5 : 1
                 }}
                 className={recording ? "pulse-ring" : ""}
@@ -356,7 +388,7 @@ export default function VoiceOnboarding({ isEmbedded = false }: { isEmbedded?: b
             </button>
 
             {/* Progress Output */}
-            <div style={{ width: "100%", maxWidth: "320px" }}>
+            <div style={{ width: "100%", maxWidth: "320px", marginBottom: "16px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.85rem", color: "var(--text-secondary)", marginBottom: "8px" }}>
                     <span>Data Captured</span>
                     <span style={{ fontWeight: 600, color: "var(--primary-blue)" }}>{filledFields}/{TOTAL_FIELDS}</span>
@@ -373,9 +405,55 @@ export default function VoiceOnboarding({ isEmbedded = false }: { isEmbedded?: b
                 </div>
             </div>
 
+            {/* JSON Output Panel */}
+            {lastApiResponse && (
+                <div style={{ width: "100%", maxWidth: "500px", marginBottom: "16px" }}>
+                    <button
+                        onClick={() => setShowJson(!showJson)}
+                        style={{
+                            width: "100%",
+                            padding: "10px 16px",
+                            background: "rgba(28, 117, 188, 0.06)",
+                            border: "1px solid rgba(28, 117, 188, 0.15)",
+                            borderRadius: showJson ? "12px 12px 0 0" : "12px",
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            color: "var(--primary-blue)",
+                            fontSize: "0.85rem",
+                            fontWeight: 600
+                        }}
+                    >
+                        <span><i className="fas fa-code" style={{ marginRight: 8 }} />Extracted JSON</span>
+                        <i className={`fas fa-chevron-${showJson ? "up" : "down"}`} />
+                    </button>
+                    {showJson && (
+                        <div style={{
+                            width: "100%",
+                            maxHeight: "300px",
+                            overflowY: "auto",
+                            background: "#1e1e2e",
+                            color: "#a6e3a1",
+                            fontFamily: "monospace",
+                            fontSize: "0.75rem",
+                            padding: "16px",
+                            borderRadius: "0 0 12px 12px",
+                            border: "1px solid rgba(28, 117, 188, 0.15)",
+                            borderTop: "none",
+                            textAlign: "left",
+                            whiteSpace: "pre-wrap",
+                            wordBreak: "break-word"
+                        }}>
+                            {JSON.stringify(lastApiResponse, null, 2)}
+                        </div>
+                    )}
+                </div>
+            )}
+
             {/* Error & Reset */}
             {error && (
-                <div style={{ marginTop: 24, color: "#e53935", fontSize: "0.9rem", display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ marginTop: 16, color: "#e53935", fontSize: "0.9rem", display: "flex", alignItems: "center", gap: 8 }}>
                     <i className="fas fa-exclamation-circle" /> {error}
                 </div>
             )}
@@ -384,7 +462,7 @@ export default function VoiceOnboarding({ isEmbedded = false }: { isEmbedded?: b
                 <button
                     onClick={resetSession}
                     style={{
-                        marginTop: 24,
+                        marginTop: 16,
                         background: "none",
                         border: "none",
                         color: "var(--text-muted)",
