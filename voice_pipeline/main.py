@@ -257,7 +257,7 @@ async def process_voice(
             session_id=conv_result["session_id"],
             audio_metadata=conv_result.get("audio_metadata", {}),
             raw_transcript=stt_result.get("raw_transcript", ""),
-            cleaned_transcript=stt_result.get("cleaned_transcript", ""),
+            cleaned_transcript=session.full_transcript,
             language=conv_result.get("language", "hi"),
             extracted_entities=entities,
             confidence_scores=conv_result.get("accumulated_confidence", {}),

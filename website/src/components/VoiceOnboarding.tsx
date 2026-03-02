@@ -29,7 +29,7 @@ export default function VoiceOnboarding({ isEmbedded = false }: { isEmbedded?: b
     const [followupQuestion, setFollowupQuestion] = useState("");
     const [round, setRound] = useState(0);
     const [error, setError] = useState<string | null>(null);
-    const [resultJson, setResultJson] = useState<object | null>(null);
+    const [conversationHistory, setConversationHistory] = useState<{ role: "user" | "assistant"; text: string }[]>([]);
 
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const chunksRef = useRef<Blob[]>([]);
@@ -57,6 +57,7 @@ export default function VoiceOnboarding({ isEmbedded = false }: { isEmbedded?: b
 
             mediaRecorder.start();
             setRecording(true);
+            setFollowupQuestion("");
         } catch {
             setError("Microphone access denied. Please allow microphone access.");
         }
@@ -100,17 +101,20 @@ export default function VoiceOnboarding({ isEmbedded = false }: { isEmbedded?: b
                 }
 
                 const data = await res.json();
-
-                // Update state
                 setSessionId(data.session_id);
-                // Transcript may be nested (data.transcript.cleaned_transcript) or flat
-                const transcript = data.transcript?.cleaned_transcript || data.cleaned_transcript || data.transcript?.raw_transcript || data.raw_transcript || "";
-                setTranscript(transcript);
+
+                const currentTranscript = data.transcript?.cleaned_transcript || data.cleaned_transcript || "";
+                const turnTranscript = data.transcript?.raw_transcript || data.raw_transcript || "";
+                setTranscript(currentTranscript);
+
+                // Add new user turn to history
+                if (turnTranscript) {
+                    setConversationHistory((prev) => [...prev, { role: "user", text: turnTranscript }]);
+                }
+
                 const rounds = data.audio_metadata?.rounds_of_conversation || data.rounds_of_conversation || round + 1;
                 setRound(rounds);
-                setResultJson(data);
 
-                // Count filled fields
                 const entities = data.extracted_entities || {};
                 let filled = 0;
                 if (entities.enterprise_name) filled++;
@@ -127,18 +131,38 @@ export default function VoiceOnboarding({ isEmbedded = false }: { isEmbedded?: b
 
                 setIsComplete(data.conversation_complete || false);
 
-                // ── Dispatch auto-fill event to OnboardingForm ──────────
-                // Voice backend returns: { extracted_entities: { enterprise_name, product_descriptions[],
-                //   buyer_types_mentioned[] (wholesale|retail|government|export|direct_consumer|other_businesses),
-                //   buyer_geographies_mentioned[], ... }, ondc_hints: { b2b_signal, b2c_signal, likely_sector } }
+                // ── Expanded auto-fill event to OnboardingForm ──────────
                 const autoFillData: Record<string, string> = { _source: "Voice Pipeline" };
                 if (entities.enterprise_name) autoFillData.enterpriseName = entities.enterprise_name;
 
                 if (entities.product_descriptions?.length) {
-                    autoFillData._productHint = entities.product_descriptions.join(", ");
+                    autoFillData.productDescription = entities.product_descriptions.join(", ");
+                }
+                if (entities.raw_materials_mentioned?.length) {
+                    autoFillData.rawMaterials = entities.raw_materials_mentioned.join(", ");
+                }
+                if (entities.factory_area_size) autoFillData.factoryArea = String(entities.factory_area_size);
+                if (entities.employees_count) autoFillData.employeesCount = String(entities.employees_count);
+                if (entities.years_in_business) autoFillData.yearsInBusiness = String(entities.years_in_business);
+
+                if (entities.major_machinery_used?.length) {
+                    autoFillData.machinery = entities.major_machinery_used.join(", ");
+                } else if (entities.manufacturing_process_keywords?.length) {
+                    autoFillData.machinery = entities.manufacturing_process_keywords.join(", ");
                 }
 
-                // Use buyer_types_mentioned (actual schema field) for transaction type
+                if (entities.daily_production_capacity) autoFillData.productionCapacity = String(entities.daily_production_capacity);
+
+                if (entities.buyer_geographies_mentioned?.length) {
+                    autoFillData.buyerGeographies = entities.buyer_geographies_mentioned.join(", ");
+                }
+
+                if (entities.selling_channels?.length) {
+                    autoFillData.sellingChannels = entities.selling_channels.join(", ");
+                } else if (entities.buyer_types_mentioned?.length) {
+                    autoFillData.sellingChannels = entities.buyer_types_mentioned.join(", ");
+                }
+
                 if (entities.buyer_types_mentioned?.length) {
                     const types = entities.buyer_types_mentioned as string[];
                     const hasB2B = types.some((t: string) =>
@@ -152,7 +176,6 @@ export default function VoiceOnboarding({ isEmbedded = false }: { isEmbedded?: b
                     else if (hasB2C) autoFillData.transactionType = "B2C";
                 }
 
-                // Use ondc_hints (b2b_signal / b2c_signal booleans) as fallback
                 const hints = data.ondc_hints;
                 if (!autoFillData.transactionType && hints) {
                     if (hints.b2b_signal && hints.b2c_signal) autoFillData.transactionType = "both";
@@ -160,20 +183,21 @@ export default function VoiceOnboarding({ isEmbedded = false }: { isEmbedded?: b
                     else if (hints.b2c_signal) autoFillData.transactionType = "B2C";
                 }
 
-                if (entities.buyer_geographies_mentioned?.length) {
-                    autoFillData._geographyHint = entities.buyer_geographies_mentioned.join(", ");
-                }
-
                 if (Object.keys(autoFillData).length > 1) {
                     window.dispatchEvent(new CustomEvent("ondc-autofill", { detail: autoFillData }));
                 }
 
-                // Handle follow-up questions TTS
                 const followups = data.followup_questions_audio || [];
-                if (followups.length > 0) {
+                if (followups.length > 0 && !data.conversation_complete) {
                     const fq = followups[0];
                     setFollowupQuestion(fq.question || "");
-                    // Play TTS audio if available
+
+                    // Update history with assistant question
+                    setConversationHistory(prev => [
+                        ...prev,
+                        { role: "assistant", text: fq.question || "" }
+                    ]);
+
                     if (fq.audio_base64 && fq.tts_success) {
                         playBase64Audio(fq.audio_base64);
                     }
@@ -184,7 +208,7 @@ export default function VoiceOnboarding({ isEmbedded = false }: { isEmbedded?: b
                 setError(
                     err instanceof Error
                         ? err.message
-                        : "Processing failed. Ensure the FastAPI backend is running on port 8000."
+                        : "Processing failed."
                 );
             } finally {
                 setProcessing(false);
@@ -210,161 +234,170 @@ export default function VoiceOnboarding({ isEmbedded = false }: { isEmbedded?: b
         setFollowupQuestion("");
         setRound(0);
         setError(null);
-        setResultJson(null);
     };
 
-    const content = (
-        <div className="two-col">
-            {/* Left: Voice Interface */}
-            <div className="card">
-                <div className="voice-interface">
-                    {/* Language Selector */}
-                    <div className="language-selector">
-                        {LANGUAGES.map((l) => (
-                            <button
-                                key={l.code}
-                                className={`lang-btn ${language === l.code ? "active" : ""}`}
-                                onClick={() => setLanguage(l.code)}
-                            >
-                                {l.label}
-                            </button>
-                        ))}
-                    </div>
+    return (
+        <div style={{ width: "100%", margin: "0 auto", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", padding: "20px 0" }}>
 
-                    {/* Mic Button */}
+            {/* Language Selector */}
+            <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "8px", marginBottom: "32px", maxWidth: "400px" }}>
+                {LANGUAGES.slice(0, 5).map((l) => (
                     <button
-                        className={`mic-button ${recording ? "recording" : ""}`}
-                        onClick={handleRecordToggle}
-                        disabled={processing}
+                        key={l.code}
+                        onClick={() => setLanguage(l.code)}
+                        style={{
+                            padding: "6px 12px",
+                            borderRadius: "20px",
+                            border: language === l.code ? "none" : "1px solid var(--border-color)",
+                            background: language === l.code ? "var(--primary-blue)" : "white",
+                            color: language === l.code ? "white" : "var(--text-secondary)",
+                            fontSize: "0.85rem",
+                            cursor: "pointer",
+                            transition: "all 0.2s"
+                        }}
                     >
-                        <i className={recording ? "fas fa-stop" : "fas fa-microphone"} />
+                        {l.label}
                     </button>
-
-                    <p className="voice-status">
-                        {processing
-                            ? "Processing transcript..."
-                            : recording
-                                ? "Listening... Click to stop"
-                                : isComplete
-                                    ? "✅ All 10 fields captured!"
-                                    : "Click to start recording"}
-                    </p>
-
-                    {/* Progress dots */}
-                    <div className="conversation-progress">
-                        {Array.from({ length: TOTAL_FIELDS }).map((_, i) => (
-                            <div
-                                key={i}
-                                className={`progress-dot ${i < filledFields ? "filled" : ""
-                                    } ${i === filledFields ? "active" : ""}`}
-                            />
-                        ))}
-                    </div>
-                    <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: 8 }}>
-                        {filledFields}/{TOTAL_FIELDS} critical fields · Round {round}
-                    </p>
-
-                    {processing && <div className="spinner" />}
-
-                    {/* Follow-up Question */}
-                    {followupQuestion && !recording && !processing && (
-                        <div
-                            style={{
-                                marginTop: 20,
-                                padding: "14px 20px",
-                                borderRadius: 12,
-                                background: "rgba(74,161,224,0.08)",
-                                border: "1px solid rgba(74,161,224,0.15)",
-                                textAlign: "left",
-                            }}
-                        >
-                            <p style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--primary-blue)", marginBottom: 4 }}>
-                                <i className="fas fa-volume-up" style={{ marginRight: 6 }} />
-                                FOLLOW-UP QUESTION
-                            </p>
-                            <p style={{ fontSize: "0.9rem", color: "var(--text-secondary)", margin: 0 }}>
-                                {followupQuestion}
-                            </p>
-                        </div>
-                    )}
-
-                    {error && (
-                        <div style={{ marginTop: 16, color: "#e53935", fontSize: "0.85rem" }}>
-                            <i className="fas fa-exclamation-triangle" style={{ marginRight: 6 }} />
-                            {error}
-                        </div>
-                    )}
-
-                    {sessionId && (
-                        <button
-                            className="btn btn-outline btn-sm"
-                            style={{ marginTop: 20 }}
-                            onClick={resetSession}
-                        >
-                            <i className="fas fa-redo" /> New Session
-                        </button>
-                    )}
-                </div>
+                ))}
             </div>
 
-            {/* Right: Transcript & extracted data */}
-            <div>
-                {/* Transcript */}
-                <div className="transcript-box">
-                    <p className="transcript-label">
-                        <i className="fas fa-closed-captioning" style={{ marginRight: 6 }} />
-                        Live Transcript
-                    </p>
-                    <p className="transcript-text">
-                        {transcript || "Your spoken words will appear here in real-time..."}
-                    </p>
-                </div>
+            {/* Central Pulse / Feedback Area */}
+            <div style={{ height: "140px", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", marginBottom: "32px" }}>
+                {!recording && !processing && !followupQuestion && (
+                    <div style={{ color: "var(--text-secondary)", fontSize: "1.1rem" }}>
+                        Tap the microphone and tell us about your business.
+                    </div>
+                )}
 
-                {/* Extracted JSON */}
-                {resultJson && (
-                    <div className="results-panel" style={{ marginTop: 16, maxHeight: 320 }}>
-                        <div className="results-header">
-                            <span>
-                                <i className="fas fa-brain" style={{ marginRight: 8, opacity: 0.5 }} />
-                                Extracted Entities
-                            </span>
-                            <span className={`status-badge ${isComplete ? "success" : "warning"}`}>
-                                <span className="status-dot" />
-                                {isComplete ? "Complete" : "In Progress"}
-                            </span>
-                        </div>
-                        <div className="results-body" style={{ fontSize: "0.75rem" }}>
-                            <pre style={{ margin: 0, whiteSpace: "pre-wrap", fontFamily: "inherit" }}>
-                                {JSON.stringify(
-                                    (resultJson as Record<string, unknown>).extracted_entities ||
-                                    (resultJson as Record<string, unknown>).nsic_gate3_signals || resultJson,
-                                    null,
-                                    2
-                                )}
-                            </pre>
-                        </div>
+                {recording && (
+                    <div className="pulse-fade" style={{ display: "flex", gap: "8px", alignItems: "center", color: "#ef4444" }}>
+                        <div style={{ width: "12px", height: "12px", borderRadius: "50%", background: "#ef4444" }} />
+                        <span style={{ fontSize: "1.2rem", fontWeight: 500 }}>Listening...</span>
+                    </div>
+                )}
+
+                {processing && (
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px", color: "var(--primary-blue)" }}>
+                        <div className="spinner" style={{ width: "24px", height: "24px", borderWidth: "3px" }} />
+                        <span style={{ fontSize: "1.1rem" }}>Analyzing voice data...</span>
+                    </div>
+                )}
+
+                {followupQuestion && !recording && !processing && (
+                    <div className="fade-in" style={{ maxWidth: "80%", textAlign: "center" }}>
+                        <p style={{ color: "var(--primary-blue)", fontSize: "0.85rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "1px", marginBottom: "8px" }}>Onboarding Assistant</p>
+                        <p style={{ fontSize: "1.2rem", color: "var(--dark-blue)", lineHeight: 1.4, margin: 0 }}>"{followupQuestion}"</p>
+                        <p style={{ marginTop: 12, color: "var(--text-muted)", fontSize: "0.85rem", fontStyle: "italic" }}>
+                            <i className="fas fa-hand-point-down" /> Tap the mic to reply
+                        </p>
                     </div>
                 )}
             </div>
-        </div>
-    );
 
-    if (isEmbedded) {
-        return <div style={{ padding: "40px 20px" }}>{content}</div>;
-    }
+            {/* Conversation History Dialogue */}
+            {conversationHistory.length > 0 && (
+                <div style={{
+                    width: "100%",
+                    maxWidth: "500px",
+                    maxHeight: "200px",
+                    overflowY: "auto",
+                    marginBottom: "32px",
+                    padding: "16px",
+                    background: "rgba(0,0,0,0.02)",
+                    borderRadius: "16px",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "12px",
+                    border: "1px solid rgba(0,0,0,0.05)"
+                }}>
+                    {conversationHistory.map((h, i) => (
+                        <div key={i} style={{
+                            alignSelf: h.role === "user" ? "flex-end" : "flex-start",
+                            maxWidth: "85%",
+                            padding: "10px 14px",
+                            borderRadius: h.role === "user" ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
+                            background: h.role === "user" ? "var(--primary-blue)" : "white",
+                            color: h.role === "user" ? "white" : "var(--dark-blue)",
+                            fontSize: "0.9rem",
+                            boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
+                            lineHeight: 1.4
+                        }}>
+                            {h.text}
+                        </div>
+                    ))}
+                </div>
+            )}
 
-    return (
-        <section className="section section-alt" id="voice-onboarding">
-            <div className="container">
-                <span className="section-badge">Voice Pipeline</span>
-                <h2 className="section-title">Conversational Voice Onboarding</h2>
-                <p className="section-subtitle">
-                    Speak in any of 11 Indian languages — our Indic Conformer 600M model
-                    transcribes and Gemma 4B extracts structured manufacturing data.
-                </p>
-                {content}
+            {/* Main Mic Action */}
+            <button
+                onClick={handleRecordToggle}
+                disabled={processing}
+                style={{
+                    width: "80px",
+                    height: "80px",
+                    borderRadius: "50%",
+                    background: recording ? "#ef4444" : "white",
+                    border: recording ? "none" : "2px solid rgba(0,0,0,0.05)",
+                    boxShadow: recording ? "0 0 24px rgba(239, 68, 68, 0.4)" : "0 8px 24px rgba(0,0,0,0.1)",
+                    color: recording ? "white" : "var(--primary-blue)",
+                    fontSize: "2rem",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: processing ? "not-allowed" : "pointer",
+                    transition: "all 0.3s ease",
+                    transform: recording ? "scale(1.1)" : "scale(1)",
+                    marginBottom: "32px",
+                    opacity: processing ? 0.5 : 1
+                }}
+                className={recording ? "pulse-ring" : ""}
+            >
+                <i className={recording ? "fas fa-stop" : "fas fa-microphone"} />
+            </button>
+
+            {/* Progress Output */}
+            <div style={{ width: "100%", maxWidth: "320px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.85rem", color: "var(--text-secondary)", marginBottom: "8px" }}>
+                    <span>Data Captured</span>
+                    <span style={{ fontWeight: 600, color: "var(--primary-blue)" }}>{filledFields}/{TOTAL_FIELDS}</span>
+                </div>
+                <div style={{ width: "100%", height: "6px", background: "rgba(0,0,0,0.05)", borderRadius: "3px", overflow: "hidden" }}>
+                    <div
+                        style={{
+                            width: `${(filledFields / TOTAL_FIELDS) * 100}%`,
+                            height: "100%",
+                            background: isComplete ? "#22c55e" : "var(--gradient-primary)",
+                            transition: "width 0.5s ease"
+                        }}
+                    />
+                </div>
             </div>
-        </section>
+
+            {/* Error & Reset */}
+            {error && (
+                <div style={{ marginTop: 24, color: "#e53935", fontSize: "0.9rem", display: "flex", alignItems: "center", gap: 8 }}>
+                    <i className="fas fa-exclamation-circle" /> {error}
+                </div>
+            )}
+
+            {sessionId && !recording && !processing && (
+                <button
+                    onClick={resetSession}
+                    style={{
+                        marginTop: 24,
+                        background: "none",
+                        border: "none",
+                        color: "var(--text-muted)",
+                        fontSize: "0.9rem",
+                        cursor: "pointer",
+                        textDecoration: "underline"
+                    }}
+                >
+                    Reset Session
+                </button>
+            )}
+
+        </div>
     );
 }
 

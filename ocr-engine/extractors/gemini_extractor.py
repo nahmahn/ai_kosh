@@ -3,7 +3,7 @@ import json
 import google.generativeai as genai
 from typing import Dict, Any
 
-from src.models import GSTR1Signals
+from models import GSTR1Signals
 
 class GeminiExtractor:
     """

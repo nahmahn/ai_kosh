@@ -36,7 +36,8 @@
                 "enum": [
                     "voice",
                     "udyam",
-                    "gstr1"
+                    "gstr1",
+                    "manual"
                 ]
             }
         },

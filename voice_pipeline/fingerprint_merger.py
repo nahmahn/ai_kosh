@@ -78,8 +78,8 @@ class FingerprintMerger:
         voice_gate3 = voice_output.get("nsic_gate3_signals", {})
         voice_ondc = voice_output.get("ondc_hints", {})
 
-        udyam = ocr_output.get("udyam", {})
-        gstr1 = ocr_output.get("gstr1", {})
+        udyam = ocr_output.get("udyam") or {}
+        gstr1 = ocr_output.get("gstr1") or {}
 
         # ── Determine data sources ────────────────────────────────────────
         data_sources = ["voice"]
@@ -100,8 +100,18 @@ class FingerprintMerger:
         }
 
         # ── Capability (union of both) ────────────────────────────────────
+        # Build NIC codes from udyam (nic_2digit / nic_5digit are now individual fields)
+        nic_codes = udyam.get("nic_codes", [])
+        if not nic_codes:
+            nic_5 = udyam.get("nic_5digit")
+            nic_2 = udyam.get("nic_2digit")
+            if nic_5:
+                nic_codes = [nic_5]
+            elif nic_2:
+                nic_codes = [nic_2]
+
         capability = {
-            "nic_codes": udyam.get("nic_codes", []),
+            "nic_codes": nic_codes,
             "hsn_codes_transacted": gstr1.get("hsn_codes_transacted", []),
             "product_descriptions_raw": voice_entities.get("product_descriptions", []),
             "manufacturing_process_keywords": voice_entities.get(

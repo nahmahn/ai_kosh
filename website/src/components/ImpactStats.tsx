@@ -3,18 +3,59 @@
 import { useEffect, useRef, useState } from "react";
 
 const stats = [
-    { target: 3, suffix: " Days", label: "Onboarding Time (vs 14 days)", icon: "fas fa-clock" },
-    { target: 10, prefix: "<", suffix: "%", label: "NSIC Claim Rejection Rate", icon: "fas fa-check-circle" },
-    { target: 12000, suffix: "+", label: "MSEs Targeted in Production", icon: "fas fa-industry" },
-    { target: 11, suffix: "", label: "Indian Languages Supported", icon: "fas fa-language" },
+    {
+        target: 3,
+        suffix: " min",
+        label: "Average Onboarding Time",
+        icon: "fas fa-clock",
+        color: "#1C75BC",
+        bg: "rgba(28, 117, 188, 0.08)",
+    },
+    {
+        target: 11,
+        suffix: "",
+        label: "Indian Languages",
+        icon: "fas fa-language",
+        color: "#059669",
+        bg: "rgba(5, 150, 105, 0.08)",
+    },
+    {
+        target: 99,
+        suffix: "%",
+        label: "Accuracy Rate",
+        icon: "fas fa-bullseye",
+        color: "#EA580C",
+        bg: "rgba(234, 88, 12, 0.08)",
+    },
+    {
+        target: 0,
+        suffix: "",
+        prefix: "",
+        label: "Manual Data Entry",
+        icon: "fas fa-keyboard",
+        color: "#7C3AED",
+        bg: "rgba(124, 58, 237, 0.08)",
+        displayText: "ZERO",
+    },
 ];
 
-function AnimatedCounter({ target, prefix = "", suffix = "" }: { target: number; prefix?: string; suffix?: string }) {
+function AnimatedCounter({
+    target,
+    prefix = "",
+    suffix = "",
+    displayText,
+}: {
+    target: number;
+    prefix?: string;
+    suffix?: string;
+    displayText?: string;
+}) {
     const [count, setCount] = useState(0);
     const ref = useRef<HTMLDivElement>(null);
     const animated = useRef(false);
 
     useEffect(() => {
+        if (displayText) return; // static text, no animation
         const observer = new IntersectionObserver(
             ([entry]) => {
                 if (entry.isIntersecting && !animated.current) {
@@ -38,47 +79,103 @@ function AnimatedCounter({ target, prefix = "", suffix = "" }: { target: number;
         );
         if (ref.current) observer.observe(ref.current);
         return () => observer.disconnect();
-    }, [target]);
+    }, [target, displayText]);
 
     return (
-        <div ref={ref} className="stat-number">
-            {prefix}{count.toLocaleString()}{suffix}
+        <div ref={ref} style={{ fontFamily: "var(--font-heading)", fontSize: "clamp(2rem, 4vw, 2.8rem)", fontWeight: 800, lineHeight: 1, marginBottom: 8 }}>
+            {displayText ? displayText : `${prefix}${count.toLocaleString()}${suffix}`}
         </div>
     );
 }
 
 export default function ImpactStats() {
+    const ref = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const observer = new IntersectionObserver(
+            (entries) =>
+                entries.forEach((e) => e.isIntersecting && e.target.classList.add("visible")),
+            { threshold: 0.1 }
+        );
+        ref.current?.querySelectorAll(".animate-in").forEach((el) => observer.observe(el));
+        return () => observer.disconnect();
+    }, []);
+
     return (
-        <section className="section section-dark" id="impact">
-            <div className="container">
-                <span className="section-badge">Performance</span>
-                <h2 className="section-title">Our Network&apos;s Impact</h2>
-                <p className="section-subtitle">
-                    Measurable improvements over the current MSME TEAM portal — faster
-                    onboarding, lower rejections, broader reach.
+        <section
+            className="section"
+            id="impact"
+            ref={ref}
+            style={{
+                background: "var(--bg-section-alt)",
+                position: "relative",
+            }}
+        >
+            <div className="container" style={{ position: "relative", zIndex: 2 }}>
+                <span className="section-badge animate-in" style={{ animationDelay: "0.05s" }}>
+                    By the Numbers
+                </span>
+                <h2 className="section-title animate-in" style={{ animationDelay: "0.1s" }}>
+                    Why Sellers Love AIKOSH
+                </h2>
+                <p
+                    className="section-subtitle animate-in"
+                    style={{ animationDelay: "0.15s", maxWidth: 580 }}
+                >
+                    AI-powered onboarding that eliminates friction and gets you
+                    selling faster.
                 </p>
 
-                <div className="grid-4">
+                <div className="grid-4" style={{ marginTop: 40 }}>
                     {stats.map((s, i) => (
-                        <div key={i} className="stat-card">
+                        <div
+                            key={i}
+                            className="animate-in"
+                            style={{
+                                animationDelay: `${0.2 + i * 0.1}s`,
+                                textAlign: "center",
+                                padding: "36px 24px",
+                                borderRadius: 20,
+                                background: "rgba(255, 255, 255, 0.7)",
+                                backdropFilter: "blur(12px)",
+                                border: "1px solid rgba(255, 255, 255, 0.8)",
+                                transition: "all 0.3s ease",
+                            }}
+                        >
                             <div
                                 style={{
-                                    width: 48,
-                                    height: 48,
-                                    borderRadius: 14,
-                                    background: "rgba(74, 161, 224, 0.12)",
+                                    width: 56,
+                                    height: 56,
+                                    borderRadius: "50%",
+                                    background: s.bg,
+                                    color: s.color,
                                     display: "flex",
                                     alignItems: "center",
                                     justifyContent: "center",
-                                    margin: "0 auto 16px",
-                                    fontSize: "1.1rem",
-                                    color: "var(--primary-blue-light)",
+                                    fontSize: "1.3rem",
+                                    margin: "0 auto 20px",
                                 }}
                             >
                                 <i className={s.icon} />
                             </div>
-                            <AnimatedCounter target={s.target} prefix={s.prefix} suffix={s.suffix} />
-                            <p className="stat-label">{s.label}</p>
+                            <div style={{ color: s.color }}>
+                                <AnimatedCounter
+                                    target={s.target}
+                                    prefix={s.prefix}
+                                    suffix={s.suffix}
+                                    displayText={s.displayText}
+                                />
+                            </div>
+                            <p
+                                style={{
+                                    fontSize: "0.9rem",
+                                    color: "var(--text-secondary)",
+                                    fontWeight: 500,
+                                    margin: 0,
+                                }}
+                            >
+                                {s.label}
+                            </p>
                         </div>
                     ))}
                 </div>

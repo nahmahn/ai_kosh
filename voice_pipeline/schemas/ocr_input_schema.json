@@ -6,8 +6,6 @@
     "required": [
         "module",
         "schema_version",
-        "udyam",
-        "gstr1",
         "merge_ready"
     ],
     "properties": {
@@ -20,7 +18,10 @@
             "const": "1.0.0"
         },
         "udyam": {
-            "type": "object",
+            "type": [
+                "object",
+                "null"
+            ],
             "properties": {
                 "udyam_id": {
                     "type": [
@@ -28,11 +29,23 @@
                         "null"
                     ]
                 },
-                "nic_codes": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
+                "enterprise_name": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "nic_2digit": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "nic_5digit": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
                 },
                 "enterprise_class": {
                     "type": [
@@ -57,11 +70,37 @@
                         "string",
                         "null"
                     ]
+                },
+                "gstin_from_udyam": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "date_of_incorporation": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "social_category": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "extraction_confidence": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
                 }
             }
         },
         "gstr1": {
-            "type": "object",
+            "type": [
+                "object",
+                "null"
+            ],
             "properties": {
                 "gstin": {
                     "type": [
@@ -121,7 +160,56 @@
                 }
             }
         },
+        "nsic_preclearance": {
+            "type": [
+                "object",
+                "null"
+            ],
+            "properties": {
+                "manufacturing_confidence_score": {
+                    "type": [
+                        "number",
+                        "null"
+                    ],
+                    "minimum": 0,
+                    "maximum": 1
+                },
+                "trading_pattern_detected": {
+                    "type": [
+                        "boolean",
+                        "null"
+                    ]
+                },
+                "nsic_gate3_status": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "flag_reason": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                }
+            }
+        },
         "merge_ready": {
+            "type": "boolean"
+        },
+        "documents_processed": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "documents_missing": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "partial_data_flag": {
             "type": "boolean"
         }
     }

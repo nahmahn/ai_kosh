@@ -16,7 +16,6 @@ export default function Navbar() {
     const links = [
         { href: "#how-it-works", label: "How It Works" },
         { href: "#impact", label: "Impact" },
-        { href: "#tech-stack", label: "Technology" },
     ];
 
     return (

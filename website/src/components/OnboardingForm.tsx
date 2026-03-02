@@ -27,6 +27,10 @@ interface FormData {
     turnover: string;
     productCategory: string;
     transactionType: "B2B" | "B2C" | "both" | "";
+    // Auto-filled from Udyam / Layer 1
+    enterpriseClass: string;
+    majorActivity: string;
+    socialCategory: string;
     // Step 3: Address & Banking
     addressLine1: string;
     addressLine2: string;
@@ -37,6 +41,16 @@ interface FormData {
     accountNumber: string;
     ifscCode: string;
     bankName: string;
+    // Manufacturing & Scale (from Voice Pipeline)
+    productDescription: string;
+    rawMaterials: string;
+    factoryArea: string;
+    employeesCount: string;
+    machinery: string;
+    productionCapacity: string;
+    yearsInBusiness: string;
+    sellingChannels: string;
+    buyerGeographies: string;
     // Step 4: Declarations
     declareNotOnONDC: boolean;
     declareNotAvailed: boolean;
@@ -56,6 +70,9 @@ const INITIAL_FORM: FormData = {
     turnover: "",
     productCategory: "",
     transactionType: "",
+    enterpriseClass: "",
+    majorActivity: "",
+    socialCategory: "",
     addressLine1: "",
     addressLine2: "",
     pincode: "",
@@ -65,6 +82,15 @@ const INITIAL_FORM: FormData = {
     accountNumber: "",
     ifscCode: "",
     bankName: "",
+    productDescription: "",
+    rawMaterials: "",
+    factoryArea: "",
+    employeesCount: "",
+    machinery: "",
+    productionCapacity: "",
+    yearsInBusiness: "",
+    sellingChannels: "",
+    buyerGeographies: "",
     declareNotOnONDC: false,
     declareNotAvailed: false,
     declareAccuracy: false,
@@ -85,6 +111,7 @@ export default function OnboardingForm({ isEmbedded = false, initialData }: { is
     const [validations, setValidations] = useState<FieldValidation>({});
     const [submitted, setSubmitted] = useState(false);
     const [autoFillSource, setAutoFillSource] = useState<Record<string, string>>({});
+    const [currentDocSource, setCurrentDocSource] = useState<string>("Udyam Certificate");
     const [pincodeLoading, setPincodeLoading] = useState(false);
     const sectionRef = useRef<HTMLElement>(null);
 
@@ -201,6 +228,7 @@ export default function OnboardingForm({ isEmbedded = false, initialData }: { is
                 return updated;
             });
 
+            if (data._docSource) setCurrentDocSource(data._docSource);
             setAutoFillSource((prev) => ({ ...prev, ...newAutoFill }));
         }
     }, [initialData]);
@@ -225,6 +253,7 @@ export default function OnboardingForm({ isEmbedded = false, initialData }: { is
                 return updated;
             });
 
+            if (data._docSource) setCurrentDocSource(data._docSource as string);
             setAutoFillSource((prev) => ({ ...prev, ...newAutoFill }));
         }
 
@@ -555,18 +584,13 @@ export default function OnboardingForm({ isEmbedded = false, initialData }: { is
                                     icon: "fas fa-id-badge",
                                     half: true,
                                 })}
-                                {renderInput("enterpriseName", "Enterprise Name", "Sharma Textiles Pvt Ltd", {
+                                {renderInput("enterpriseName", "Enterprise Name", "e.g. Sharma Textiles Pvt Ltd", {
                                     icon: "fas fa-store",
                                     half: true,
                                 })}
                             </div>
 
                             <div className="onb-row">
-                                {renderInput("turnover", "Annual Turnover (₹)", "50,00,000", {
-                                    type: "text",
-                                    icon: "fas fa-rupee-sign",
-                                    half: true,
-                                })}
                                 {renderSelect(
                                     "productCategory",
                                     "Product Category (NIC Code)",
@@ -574,6 +598,93 @@ export default function OnboardingForm({ isEmbedded = false, initialData }: { is
                                     { icon: "fas fa-tags", half: true }
                                 )}
                             </div>
+
+                            <div className="onb-divider">
+                                <span>Manufacturing & Commercial Scale</span>
+                            </div>
+
+                            <div className="onb-fields">
+                                {renderInput("productDescription", "What do you make/sell?", "e.g. Handmade leather shoes, Cotton textiles", {
+                                    icon: "fas fa-shopping-bag",
+                                })}
+
+                                <div className="onb-row">
+                                    {renderInput("rawMaterials", "Main Raw Materials", "e.g. Leather hides, Cotton yarn, Dyes", {
+                                        icon: "fas fa-box-open",
+                                        half: true,
+                                    })}
+                                    {renderInput("machinery", "Major Machinery", "e.g. Stitching machines, CNC router", {
+                                        icon: "fas fa-tools",
+                                        half: true,
+                                    })}
+                                </div>
+
+                                <div className="onb-row">
+                                    {renderInput("factoryArea", "Factory/Workshop Area", "e.g. 1500 sq. ft.", {
+                                        icon: "fas fa-vector-square",
+                                        half: true,
+                                    })}
+                                    {renderInput("productionCapacity", "Monthly Production", "e.g. 500 units per month", {
+                                        icon: "fas fa-chart-line",
+                                        half: true,
+                                    })}
+                                </div>
+
+                                <div className="onb-row">
+                                    {renderInput("employeesCount", "No. of Employees", "e.g. 10", {
+                                        icon: "fas fa-users",
+                                        half: true,
+                                    })}
+                                    {renderInput("yearsInBusiness", "Years in Business", "e.g. 5", {
+                                        icon: "fas fa-calendar-alt",
+                                        half: true,
+                                    })}
+                                </div>
+
+                                {renderInput("sellingChannels", "Where do you sell? (Channels)", "e.g. IndiaMART, WhatsApp, Amazon, Local Market", {
+                                    icon: "fas fa-external-link-alt",
+                                    half: true,
+                                })}
+                                {renderInput("buyerGeographies", "Target Markets (Cities/States)", "e.g. Mumbai, Delhi, Export to UAE", {
+                                    icon: "fas fa-globe-asia",
+                                    half: true,
+                                })}
+                            </div>
+
+                            <div className="onb-row">
+                                {renderInput("turnover", "Annual Turnover (₹)", "e.g. 50,00,000", {
+                                    type: "text",
+                                    icon: "fas fa-rupee-sign",
+                                    half: true,
+                                })}
+                            </div>
+
+                            {/* Enterprise classification fields (auto-filled from Udyam) */}
+                            {(form.enterpriseClass || form.majorActivity || form.socialCategory) && (
+                                <div className="onb-info-box" style={{ marginBottom: 16 }}>
+                                    <i className="fas fa-magic" />
+                                    <div>
+                                        <strong>AI-Extracted from {currentDocSource}</strong>
+                                        <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 12 }}>
+                                            {form.enterpriseClass && (
+                                                <span className="onb-autofill-badge" style={{ fontSize: "0.85rem" }}>
+                                                    <i className="fas fa-layer-group" /> {form.enterpriseClass} Enterprise
+                                                </span>
+                                            )}
+                                            {form.majorActivity && (
+                                                <span className="onb-autofill-badge" style={{ fontSize: "0.85rem" }}>
+                                                    <i className="fas fa-industry" /> {form.majorActivity}
+                                                </span>
+                                            )}
+                                            {form.socialCategory && (
+                                                <span className="onb-autofill-badge" style={{ fontSize: "0.85rem" }}>
+                                                    <i className="fas fa-users" /> {form.socialCategory}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="onb-field">
                                 <label className="onb-label">
@@ -718,6 +829,24 @@ export default function OnboardingForm({ isEmbedded = false, initialData }: { is
                                     <span>Transaction Type</span>
                                     <strong>{form.transactionType.toUpperCase()}</strong>
                                 </div>
+                                {form.enterpriseClass && (
+                                    <div className="onb-review-row">
+                                        <span>Enterprise Class</span>
+                                        <strong>{form.enterpriseClass}</strong>
+                                    </div>
+                                )}
+                                {form.majorActivity && (
+                                    <div className="onb-review-row">
+                                        <span>Major Activity</span>
+                                        <strong>{form.majorActivity}</strong>
+                                    </div>
+                                )}
+                                {form.socialCategory && (
+                                    <div className="onb-review-row">
+                                        <span>Social Category</span>
+                                        <strong>{form.socialCategory}</strong>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="onb-review-section">
