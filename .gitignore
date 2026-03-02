@@ -43,6 +43,6 @@ venv.bak/
 .DS_Store
 Thumbs.db
 
-*.md
+
 *.pdf
 *.png
